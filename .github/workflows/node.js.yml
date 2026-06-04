@@ -27,5 +27,12 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     - run: npm ci
-    - run: npm run build --if-present
+    - name: Deploy to server
+      run: |
+        rsync -av --delete $GITHUB_WORKSPACE/ /var/alphadevs/my_web_app/CloudTestBackend/
+        cd /var/alphadevs/my_web_app/CloudTestBackend
+        npm ci --omit=dev
+
+    - name: Restart app
+      run: pm2 restart CloudTestBackend
     
