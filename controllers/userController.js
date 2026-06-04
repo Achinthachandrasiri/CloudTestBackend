@@ -74,7 +74,8 @@ const getUserById = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const { name, email, age } = req.body;
-    console.log("Received user data:", req.body);
+    console.log("Name:", name, "Email:", email, "Age:", age);
+    console.log("HELLO WORLD");
 
     // Check required fields manually
     if (!name || !email || !age) {
