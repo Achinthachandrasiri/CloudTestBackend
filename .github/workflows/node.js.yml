@@ -30,19 +30,29 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
 
-      # 3. Install dependencies (CI safe install)
+      # 3. Install dependencies
       - name: Install dependencies
         run: npm ci
 
-      # 4. Run build (if your project has it)
+      # 4. Create .env file 
+      - name: Create environment file
+        run: |
+          cat <<EOF > .env
+          PORT=${{ secrets.PORT }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          NODE_ENV=${{ secrets.NODE_ENV }}
+          CLIENT_URL=${{ secrets.CLIENT_URL }}
+          EOF
+
+      # 5. Build project (if needed)
       - name: Build project
         run: npm run build --if-present
 
-      # 5. Run tests (if available)
+      # 6. Run tests (optional)
       - name: Run tests
-        run: npm test --if-present || echo "No tests or failing test script - skipping"
-        
-      # 6. Deploy to server
+        run: npm test --if-present || echo "Skipping tests"
+
+      # 7. Deploy to server
       - name: Deploy to server
         run: |
           set -e
@@ -56,11 +66,12 @@ jobs:
 
           npm ci --omit=dev
 
-      # 7. Restart app safely (zero-downtime if possible)
+      # 8. Restart app safely
       - name: Restart app
         run: |
-          pm2 reload CloudTestBackend || pm2 restart CloudTestBackend
+          pm2 delete CloudTestBackend || true
+          pm2 start npm --name "CloudTestBackend" -- start
 
-      # 8. Verify app is running
+      # 9. Check status
       - name: Check PM2 status
         run: pm2 status
