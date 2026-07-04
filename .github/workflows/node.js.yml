@@ -1,38 +1,66 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
-name: Node.js CI
+name: Node.js CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+# Prevent multiple deployments at the same time
+concurrency:
+  group: production
+  cancel-in-progress: true
 
 jobs:
-  build:
-
+  deploy:
     runs-on: self-hosted
 
     strategy:
       matrix:
         node-version: [22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm ci
-    - name: Deploy to server
-      run: |
-        rsync -av --delete $GITHUB_WORKSPACE/ /var/alphadevs/my_web_app/CloudTestBackend/
-        cd /var/alphadevs/my_web_app/CloudTestBackend
-        npm ci --omit=dev
+      # 1. Checkout code
+      - uses: actions/checkout@v4
 
-    - name: Restart app
-      run: pm2 restart CloudTestBackend
-    
+      # 2. Setup Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      # 3. Install dependencies (CI safe install)
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Run build (if your project has it)
+      - name: Build project
+        run: npm run build --if-present
+
+      # 5. Run tests (if available)
+      - name: Run tests
+        run: npm test --if-present
+
+      # 6. Deploy to server
+      - name: Deploy to server
+        run: |
+          set -e
+
+          rsync -av --delete \
+            --exclude node_modules \
+            --exclude .git \
+            $GITHUB_WORKSPACE/ /var/alphadevs/my_web_app/CloudTestBackend/
+
+          cd /var/alphadevs/my_web_app/CloudTestBackend
+
+          npm ci --omit=dev
+
+      # 7. Restart app safely (zero-downtime if possible)
+      - name: Restart app
+        run: |
+          pm2 reload CloudTestBackend || pm2 restart CloudTestBackend
+
+      # 8. Verify app is running
+      - name: Check PM2 status
+        run: pm2 status
